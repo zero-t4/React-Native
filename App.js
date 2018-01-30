@@ -16,6 +16,7 @@ import { CalendarList  } from 'react-native-calendars';
 import Modal from "react-native-modal";
 import Prompt from 'rn-prompt';
 import {MessageBarManager, MessageBar as MessageBarAlert} from 'react-native-message-bar';
+import _ from 'lodash';
 
 const Container = styled.View`
   flex: 1;
@@ -85,17 +86,50 @@ const KEY_NAME = "@MySuperStore:async_key";
 
 export default class App extends Component<{}> {
   state = {
+    data: [],
     count: 0,
     windowWidth: 300,
     modalVisible: false
   };
 
   onButton = async () => {
-    let current = await App.getKey();
-    current++;
+    let data = await App.getKey();
+    const currentDate = this.getFormattedDate();
+    const todayWasChecked = data.some((el)=>{
+      return el.currentDate === currentDate
+    });
 
-    await App.saveKey(current);
-    this.syncState();
+    if(!todayWasChecked) {
+      const index = data.length;
+
+      data.push({
+        currentDate,
+        index
+      });
+
+      await App.saveAllDataToAsyncStore([...data]);
+      this.syncState();
+      await this.setState({
+        message: '+1 today :)'
+      });
+      this.alert('success');
+    } else {
+      await this.setState({
+        message: 'You already made a checkout today, sorry... ):'
+      });
+      this.alert('warning');
+    }
+  };
+
+  getFormattedDate = () => {
+      const today = new Date();
+      let dd = today.getDate();
+      let mm = today.getMonth()+1;
+
+      const yyyy = today.getFullYear();
+      if(dd<10) dd='0'+dd;
+      if(mm<10) mm='0'+mm;
+      return `${yyyy}-${mm}-${dd}`;
   };
 
   onRemove = async () => {
@@ -115,9 +149,51 @@ export default class App extends Component<{}> {
   };
 
   syncState = async () => {
+    const data = await App.getKey();
+    const count = data.length;
     this.setState({
-      count: await App.getKey()
+      count,
+      data: [...data]
     });
+  };
+
+  getRandomColor = () => {
+    let o = Math.round, r = Math.random, s = 255;
+    return 'rgba(' + o(r()*s) + ',' + o(r()*s) + ',' + o(r()*s) + ',' + r().toFixed(1) + ')';
+  };
+
+  markDates = () => {
+
+    const { data } = this.state;
+    let temp = data.map( el => {
+      return {
+        [`${el.currentDate}`] : {
+          marked: true,
+          dotColor: this.getRandomColor()
+        }
+      }
+    });
+
+    temp = this.arrayToObj(temp ,function (item) {
+      const firstItemInObject = Object.keys(item)[0];
+      return {
+        key: firstItemInObject,
+        value: item[firstItemInObject]
+      };
+    })
+
+    return temp;
+
+  };
+
+  arrayToObj (array, fn) {
+    var obj = {};
+    var len = array.length;
+    for (var i = 0; i < len; i++) {
+      var item = fn(array[i], i, array);
+      obj[item.key] = item.value;
+    }
+    return obj;
   };
 
   async componentWillMount() {
@@ -133,11 +209,13 @@ export default class App extends Component<{}> {
         Dimensions.get("window").height
       )
     });
+
     if (!await App.getKey()) {
-        //set initial state at the first launch
-        await this.initStorage();
+      //set initial state at the first launch
+      await App.initStorage();
+      this.syncState();
     } else {
-        this.syncState();
+      this.syncState();
     }
   }
 
@@ -149,12 +227,12 @@ export default class App extends Component<{}> {
     MessageBarManager.unregisterMessageBar();
   }
 
-  alert = () => {
-    debugger
+  alert = (alertType ) => {
+    debugger;
     MessageBarManager.showAlert({
       title: 'Alert message',
       message: this.state.message,
-      alertType: 'success',
+      alertType: alertType || 'success',
     });
 
     setTimeout(()=> {
@@ -166,7 +244,7 @@ export default class App extends Component<{}> {
     return JSON.parse(await AsyncStorage.getItem(KEY_NAME));
   }
 
-  static async saveKey(value) {
+  static async saveAllDataToAsyncStore(value) {
     return await AsyncStorage.setItem(KEY_NAME, JSON.stringify(value));
   }
 
@@ -185,13 +263,13 @@ export default class App extends Component<{}> {
   };
 
   promptOnSubmit =  async (value) => {
-    if (value.toLowerCase() === 'yes') {
+    if (value.toLowerCase().trim() === 'yes') {
       await this.setState({
         promptVisible: false,
-        message: `You said "${value}"`
+        message: `You cleared data storage`
       });
 
-      await App.saveKey(1);
+      await App.saveAllDataToAsyncStore([]);
       this.syncState();
       this.alert();
     } else {
@@ -238,12 +316,7 @@ export default class App extends Component<{}> {
         >
           <View style={{height: 400}}>
             <CalendarList
-              markedDates={{
-                "2018-01-16": {marked: true},
-                "2018-01-17": {marked: true},
-                "2018-01-18": {marked: true, dotColor: "red"},
-                "2018-01-19": {disabled: true}
-              }}
+              markedDates={this.markDates()}
             />
             <TouchableOpacity onPress={this.closeModal}>
               <CloseButton>
