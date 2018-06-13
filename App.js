@@ -16,7 +16,8 @@ import { CalendarList  } from 'react-native-calendars';
 import Modal from "react-native-modal";
 import Prompt from 'rn-prompt';
 import {MessageBarManager, MessageBar as MessageBarAlert} from 'react-native-message-bar';
-import _ from 'lodash';
+import ToggleSwitch from 'toggle-switch-react-native';
+import RadioForm from 'react-native-simple-radio-button';
 
 const Container = styled.View`
   flex: 1;
@@ -87,9 +88,10 @@ const KEY_NAME = "@MySuperStore:async_key";
 export default class App extends Component<{}> {
   state = {
     data: [],
-    count: 0,
+    count: 53,
     windowWidth: 300,
-    modalVisible: false
+    modalVisible: false,
+    initModalVisible: false,
   };
 
   onButton = async () => {
@@ -142,10 +144,20 @@ export default class App extends Component<{}> {
     this.setState({modalVisible: true});
   };
 
-  closeModal = () => {
-    this.setState({
-      modalVisible: false
-    });
+  closeModal = init => {
+    init
+      ? this.setState({
+        initModalVisible: false
+      })
+      : this.setState({
+        modalVisible: false
+      });
+  };
+
+  saveInitData = async () => {
+    await this.closeModal(true);
+    debugger;
+    this.syncState();
   };
 
   syncState = async () => {
@@ -180,17 +192,17 @@ export default class App extends Component<{}> {
         key: firstItemInObject,
         value: item[firstItemInObject]
       };
-    })
+    });
 
     return temp;
 
   };
 
   arrayToObj (array, fn) {
-    var obj = {};
-    var len = array.length;
-    for (var i = 0; i < len; i++) {
-      var item = fn(array[i], i, array);
+    const obj = {};
+    const len = array.length;
+    for (let i = 0; i < len; i++) {
+      const item = fn(array[i], i, array);
       obj[item.key] = item.value;
     }
     return obj;
@@ -212,8 +224,10 @@ export default class App extends Component<{}> {
 
     if (!await App.getKey()) {
       //set initial state at the first launch
-      await App.initStorage();
-      this.syncState();
+      this.setState({
+        initModalVisible: true,
+      });
+
     } else {
       this.syncState();
     }
@@ -247,12 +261,6 @@ export default class App extends Component<{}> {
   static async saveAllDataToAsyncStore(value) {
     return await AsyncStorage.setItem(KEY_NAME, JSON.stringify(value));
   }
-
-  static async initStorage() {
-    const initStore = [];
-    return await AsyncStorage.setItem(KEY_NAME, JSON.stringify(initStore));
-  }
-
 
   promptOnCancel = async () => {
     await this.setState({
@@ -323,6 +331,67 @@ export default class App extends Component<{}> {
                 <Text>Close</Text>
               </CloseButton>
             </TouchableOpacity>
+          </View>
+        </Modal>
+
+        <Modal
+          isVisible={this.state.initModalVisible}
+        >
+          <View style={{
+            height: 400,
+            backgroundColor: 'white',
+            borderRadius: 22,
+          }}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: 'space-around',
+                alignItems: 'center'
+              }}
+            >
+              <View
+                style={{
+                  justifyContent: 'center',
+                  alignItems: 'space-around'
+                }}
+              >
+                <RadioForm
+                  radio_props={[
+                    { label: "1 month", value: 31 },
+                    { label: "2 months", value: 62 },
+                    { label: "3 months", value: 93 },
+                  ]}
+                  onPress={value => {
+                    this.setState({
+                      initValue: value,
+                    });
+                  }}
+                  formHorizontal={true}
+                  labelHorizontal={false}
+                  labelColor={'#50C900'}
+                  initial={0}
+                />
+              </View>
+
+              <ToggleSwitch
+                isOn={false}
+                onColor='green'
+                offColor='red'
+                label='One label in one day?'
+                labelStyle={{color: 'black', fontWeight: '900'}}
+                size='large'
+                onToggle={ (isOn) => {
+                  this.setState({
+                    initOneInOneDay: isOn,
+                  });
+                }}
+              />
+              <TouchableOpacity onPress={this.saveInitData}>
+                <CloseButton>
+                  <Text>Save</Text>
+                </CloseButton>
+              </TouchableOpacity>
+            </View>
           </View>
         </Modal>
 
